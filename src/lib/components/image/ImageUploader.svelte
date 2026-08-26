@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { imageStore } from '$lib/stores/image.svelte';
+	import { sampleImages } from '$lib/image-processing/core/samples';
+	import SampleThumbnail from './SampleThumbnail.svelte';
 
 	let isDragging = $state(false);
 	let error = $state<string | null>(null);
@@ -58,6 +60,15 @@
 		const file = event.dataTransfer?.files?.[0];
 		if (file) loadFile(file);
 	}
+
+	function selectSample(name: string, imageData: ImageData) {
+		imageStore.set({
+			imageData,
+			width: imageData.width,
+			height: imageData.height,
+			name
+		});
+	}
 </script>
 
 <div
@@ -87,6 +98,15 @@
 {#if error}
 	<p class="error" role="alert">{error}</p>
 {/if}
+
+<div class="samples">
+	<p class="samples-label">Atau coba contoh gambar:</p>
+	<div class="samples-row">
+		{#each sampleImages as sample (sample.name)}
+			<SampleThumbnail {sample} onselect={(imageData) => selectSample(sample.name, imageData)} />
+		{/each}
+	</div>
+</div>
 
 <style>
 	.uploader {
@@ -119,5 +139,21 @@
 	.error {
 		color: var(--color-error, #dc2626);
 		margin-top: 0.5rem;
+	}
+
+	.samples {
+		margin-top: 1rem;
+	}
+
+	.samples-label {
+		font-size: 0.8rem;
+		color: var(--color-muted, #666);
+		margin: 0 0 0.5rem;
+	}
+
+	.samples-row {
+		display: flex;
+		gap: 1rem;
+		flex-wrap: wrap;
 	}
 </style>
