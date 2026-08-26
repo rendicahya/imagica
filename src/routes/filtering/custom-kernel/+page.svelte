@@ -4,7 +4,8 @@
 	import BeforeAfterViewer from '$lib/components/image/BeforeAfterViewer.svelte';
 	import KernelVisualizer from '$lib/components/visualization/KernelVisualizer.svelte';
 	import { kernelPresets } from '$lib/image-processing/filtering/kernels';
-	import { convolve } from '$lib/image-processing/filtering/convolution';
+	import { convolveAsync } from '$lib/workers/processing-client';
+	import { asyncResult } from '$lib/workers/async-result.svelte';
 
 	function presetFor(size: number): number[] {
 		if (size === 3) return [...kernelPresets.identity.values];
@@ -29,15 +30,16 @@
 
 	let divisorInput = $derived(values.reduce((a, b) => a + b, 0));
 
-	let processed = $derived(
+	const processedResult = asyncResult(() =>
 		imageStore.current
-			? convolve(imageStore.current.imageData, {
+			? convolveAsync(imageStore.current.imageData, {
 					size,
 					values,
 					divisor: divisorInput === 0 ? 1 : divisorInput
 				})
 			: null
 	);
+	let processed = $derived(processedResult.value);
 </script>
 
 <svelte:head>
@@ -84,6 +86,8 @@
 				<BeforeAfterViewer original={image.imageData} {processed} />
 				<button type="button" onclick={() => imageStore.clear()}>Ganti Gambar</button>
 			</div>
+		{:else}
+			<p class="hint">Memproses…</p>
 		{/if}
 	</section>
 </article>

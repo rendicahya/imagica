@@ -3,13 +3,15 @@
 	import ImageUploader from '$lib/components/image/ImageUploader.svelte';
 	import BeforeAfterViewer from '$lib/components/image/BeforeAfterViewer.svelte';
 	import ParameterSlider from '$lib/components/controls/ParameterSlider.svelte';
-	import { sharpen } from '$lib/image-processing/filtering/sharpening';
+	import { sharpenAsync } from '$lib/workers/processing-client';
+	import { asyncResult } from '$lib/workers/async-result.svelte';
 
 	let amount = $state(1);
 
-	let processed = $derived(
-		imageStore.current ? sharpen(imageStore.current.imageData, amount) : null
+	const processedResult = asyncResult(() =>
+		imageStore.current ? sharpenAsync(imageStore.current.imageData, amount) : null
 	);
+	let processed = $derived(processedResult.value);
 </script>
 
 <svelte:head>
@@ -45,6 +47,8 @@
 				<button type="button" onclick={() => imageStore.clear()}>Ganti Gambar</button>
 			</aside>
 		</section>
+	{:else}
+		<p class="hint">Memproses…</p>
 	{/if}
 </article>
 
@@ -69,6 +73,12 @@
 		display: flex;
 		flex-direction: column;
 		gap: 1rem;
+	}
+
+	.hint {
+		font-size: 0.8rem;
+		color: var(--color-muted, #666);
+		margin: 0;
 	}
 
 	@media (max-width: 768px) {

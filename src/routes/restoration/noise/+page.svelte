@@ -9,8 +9,9 @@
 		addSpeckleNoise,
 		motionBlurKernel
 	} from '$lib/image-processing/restoration/noise';
-	import { gaussianBlur } from '$lib/image-processing/filtering/smoothing';
-	import { convolve } from '$lib/image-processing/filtering/convolution';
+	import { gaussianBlurAsync, convolveAsync } from '$lib/workers/processing-client';
+	import { asyncResult } from '$lib/workers/async-result.svelte';
+	import type { LoadedImage } from '$lib/types/image';
 
 	type Kind = 'gaussian' | 'salt-pepper' | 'speckle' | 'gaussian-blur' | 'motion-blur';
 
@@ -18,10 +19,12 @@
 	let amount = $state(25);
 	let angle = $state(0);
 
-	let degraded = $derived.by(() => {
-		const image = imageStore.current;
-		if (!image) return null;
-
+	async function computeDegraded(
+		image: LoadedImage,
+		kind: Kind,
+		amount: number,
+		angle: number
+	): Promise<ImageData> {
 		switch (kind) {
 			case 'gaussian':
 				return addGaussianNoise(image.imageData, amount);
@@ -30,11 +33,18 @@
 			case 'speckle':
 				return addSpeckleNoise(image.imageData, amount / 100);
 			case 'gaussian-blur':
-				return gaussianBlur(image.imageData, 9, amount / 10);
+				return gaussianBlurAsync(image.imageData, 9, amount / 10);
 			case 'motion-blur':
-				return convolve(image.imageData, motionBlurKernel(15, angle));
+				return convolveAsync(image.imageData, motionBlurKernel(15, angle));
 		}
+	}
+
+	const degradedResult = asyncResult(() => {
+		const image = imageStore.current;
+		if (!image) return null;
+		return computeDegraded(image, kind, amount, angle);
 	});
+	let degraded = $derived(degradedResult.value);
 </script>
 
 <svelte:head>
@@ -106,6 +116,8 @@
 				<button type="button" onclick={() => imageStore.clear()}>Ganti Gambar</button>
 			</aside>
 		</section>
+	{:else if imageStore.current}
+		<p class="hint">Memproses…</p>
 	{/if}
 </article>
 
@@ -141,6 +153,12 @@
 	.tabs button.active {
 		background: var(--color-accent, #6366f1);
 		color: white;
+	}
+
+	.hint {
+		font-size: 0.8rem;
+		color: var(--color-muted, #666);
+		margin: 0;
 	}
 
 	@media (max-width: 768px) {

@@ -3,19 +3,21 @@
 	import ImageUploader from '$lib/components/image/ImageUploader.svelte';
 	import BeforeAfterViewer from '$lib/components/image/BeforeAfterViewer.svelte';
 	import ParameterSlider from '$lib/components/controls/ParameterSlider.svelte';
-	import { boxBlur, gaussianBlur } from '$lib/image-processing/filtering/smoothing';
+	import { boxBlurAsync, gaussianBlurAsync } from '$lib/workers/processing-client';
+	import { asyncResult } from '$lib/workers/async-result.svelte';
 
 	let method = $state<'box' | 'gaussian'>('gaussian');
 	let size = $state(5);
 	let sigma = $state(1.5);
 
-	let processed = $derived(
+	const processedResult = asyncResult(() =>
 		imageStore.current
 			? method === 'box'
-				? boxBlur(imageStore.current.imageData, size)
-				: gaussianBlur(imageStore.current.imageData, size, sigma)
+				? boxBlurAsync(imageStore.current.imageData, size)
+				: gaussianBlurAsync(imageStore.current.imageData, size, sigma)
 			: null
 	);
+	let processed = $derived(processedResult.value);
 </script>
 
 <svelte:head>
@@ -74,6 +76,8 @@
 				<button type="button" onclick={() => imageStore.clear()}>Ganti Gambar</button>
 			</aside>
 		</section>
+	{:else}
+		<p class="hint">Memproses…</p>
 	{/if}
 </article>
 
@@ -108,6 +112,12 @@
 	.tabs button.active {
 		background: var(--color-accent, #6366f1);
 		color: white;
+	}
+
+	.hint {
+		font-size: 0.8rem;
+		color: var(--color-muted, #666);
+		margin: 0;
 	}
 
 	@media (max-width: 768px) {

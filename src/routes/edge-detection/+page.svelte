@@ -3,42 +3,59 @@
 	import ImageUploader from '$lib/components/image/ImageUploader.svelte';
 	import CanvasFrame from '$lib/components/image/CanvasFrame.svelte';
 	import ParameterSlider from '$lib/components/controls/ParameterSlider.svelte';
-	import { sobel, gradientToImage } from '$lib/image-processing/edge/sobel';
-	import { prewitt } from '$lib/image-processing/edge/prewitt';
-	import { roberts } from '$lib/image-processing/edge/roberts';
-	import { laplacian } from '$lib/image-processing/edge/laplacian';
-	import { canny } from '$lib/image-processing/edge/canny';
+	import { gradientToImage, type GradientResult } from '$lib/image-processing/edge/sobel';
+	import {
+		robertsAsync,
+		laplacianAsync,
+		cannyAsync,
+		sobelAsync,
+		prewittAsync
+	} from '$lib/workers/processing-client';
+	import { asyncResult } from '$lib/workers/async-result.svelte';
 
 	type Method = 'roberts' | 'prewitt' | 'sobel' | 'laplacian' | 'canny';
+
+	interface EdgeOutcome {
+		result: ImageData;
+		gradient: GradientResult | null;
+	}
 
 	let method = $state<Method>('sobel');
 	let lowThreshold = $state(30);
 	let highThreshold = $state(80);
 
-	let gradientResult = $derived(
-		imageStore.current && (method === 'sobel' || method === 'prewitt')
-			? method === 'sobel'
-				? sobel(imageStore.current.imageData)
-				: prewitt(imageStore.current.imageData)
-			: null
-	);
-
-	let result = $derived.by(() => {
-		const image = imageStore.current;
-		if (!image) return null;
-
+	async function resolveOutcome(
+		imageData: ImageData,
+		method: Method,
+		lowThreshold: number,
+		highThreshold: number
+	): Promise<EdgeOutcome> {
 		switch (method) {
 			case 'roberts':
-				return roberts(image.imageData);
+				return { result: await robertsAsync(imageData), gradient: null };
 			case 'laplacian':
-				return laplacian(image.imageData);
+				return { result: await laplacianAsync(imageData), gradient: null };
 			case 'canny':
-				return canny(image.imageData, { lowThreshold, highThreshold });
-			case 'sobel':
-			case 'prewitt':
-				return gradientResult?.magnitude ?? null;
+				return { result: await cannyAsync(imageData, lowThreshold, highThreshold), gradient: null };
+			case 'sobel': {
+				const gradient = await sobelAsync(imageData);
+				return { result: gradient.magnitude, gradient };
+			}
+			case 'prewitt': {
+				const gradient = await prewittAsync(imageData);
+				return { result: gradient.magnitude, gradient };
+			}
 		}
+	}
+
+	const outcome = asyncResult(() => {
+		const image = imageStore.current;
+		if (!image) return null;
+		return resolveOutcome(image.imageData, method, lowThreshold, highThreshold);
 	});
+
+	let result = $derived(outcome.value?.result ?? null);
+	let gradientResult = $derived(outcome.value?.gradient ?? null);
 </script>
 
 <svelte:head>
@@ -124,6 +141,8 @@
 				<button type="button" onclick={() => imageStore.clear()}>Ganti Gambar</button>
 			</aside>
 		</section>
+	{:else}
+		<p class="hint">Memproses…</p>
 	{/if}
 </article>
 

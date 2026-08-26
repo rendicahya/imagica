@@ -5,11 +5,9 @@
 	import CanvasFrame from '$lib/components/image/CanvasFrame.svelte';
 	import KernelVisualizer from '$lib/components/visualization/KernelVisualizer.svelte';
 	import { kernelPresets, type Kernel } from '$lib/image-processing/filtering/kernels';
-	import {
-		convolve,
-		convolveAtPixel,
-		type EdgeMode
-	} from '$lib/image-processing/filtering/convolution';
+	import { convolveAtPixel, type EdgeMode } from '$lib/image-processing/filtering/convolution';
+	import { convolveAsync } from '$lib/workers/processing-client';
+	import { asyncResult } from '$lib/workers/async-result.svelte';
 
 	let presetName = $state<keyof typeof kernelPresets>('gaussianBlur');
 	let edgeMode = $state<EdgeMode>('clamp');
@@ -17,9 +15,10 @@
 
 	let kernel = $derived<Kernel>(kernelPresets[presetName]);
 
-	let processed = $derived(
-		imageStore.current ? convolve(imageStore.current.imageData, kernel, edgeMode) : null
+	const processedResult = asyncResult(() =>
+		imageStore.current ? convolveAsync(imageStore.current.imageData, kernel, edgeMode) : null
 	);
+	let processed = $derived(processedResult.value);
 
 	let trace = $derived(
 		imageStore.current && selected
@@ -50,7 +49,9 @@
 				<ImageViewer imageData={image.imageData} bind:selected />
 				<CanvasFrame
 					imageData={processed}
-					caption="Hasil (klik gambar di atas untuk melihat perhitungan)"
+					caption="Hasil (klik gambar di atas untuk melihat perhitungan){processedResult.pending
+						? ' — memproses…'
+						: ''}"
 				/>
 			</div>
 
@@ -94,6 +95,8 @@
 				<button type="button" onclick={() => imageStore.clear()}>Ganti Gambar</button>
 			</aside>
 		</section>
+	{:else}
+		<p class="hint">Memproses…</p>
 	{/if}
 </article>
 

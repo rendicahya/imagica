@@ -4,10 +4,15 @@
 	import CanvasFrame from '$lib/components/image/CanvasFrame.svelte';
 	import ParameterSlider from '$lib/components/controls/ParameterSlider.svelte';
 	import { addGaussianNoise, addSaltAndPepperNoise } from '$lib/image-processing/restoration/noise';
-	import { boxBlur, gaussianBlur, medianFilter } from '$lib/image-processing/filtering/smoothing';
 	import { mse } from '$lib/image-processing/metrics/mse';
 	import { psnr } from '$lib/image-processing/metrics/psnr';
 	import { ssim } from '$lib/image-processing/metrics/ssim';
+	import {
+		boxBlurAsync,
+		gaussianBlurAsync,
+		medianFilterAsync
+	} from '$lib/workers/processing-client';
+	import { asyncResult } from '$lib/workers/async-result.svelte';
 
 	type NoiseKind = 'gaussian' | 'salt-pepper';
 	type FilterKind = 'mean' | 'gaussian' | 'median';
@@ -25,15 +30,16 @@
 			: null
 	);
 
-	let restored = $derived(
+	const restoredResult = asyncResult(() =>
 		degraded
 			? filterKind === 'mean'
-				? boxBlur(degraded, filterSize)
+				? boxBlurAsync(degraded, filterSize)
 				: filterKind === 'gaussian'
-					? gaussianBlur(degraded, filterSize, filterSize / 3)
-					: medianFilter(degraded, filterSize)
+					? gaussianBlurAsync(degraded, filterSize, filterSize / 3)
+					: medianFilterAsync(degraded, filterSize)
 			: null
 	);
+	let restored = $derived(restoredResult.value);
 
 	let metrics = $derived(
 		imageStore.current && restored
@@ -138,6 +144,8 @@
 				<button type="button" onclick={() => imageStore.clear()}>Ganti Gambar</button>
 			</aside>
 		</section>
+	{:else if imageStore.current}
+		<p class="hint">Memproses…</p>
 	{/if}
 </article>
 
@@ -200,6 +208,12 @@
 	}
 
 	dd {
+		margin: 0;
+	}
+
+	.hint {
+		font-size: 0.8rem;
+		color: var(--color-muted, #666);
 		margin: 0;
 	}
 
